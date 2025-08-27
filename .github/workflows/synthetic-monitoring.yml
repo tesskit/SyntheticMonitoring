@@ -1,54 +1,3 @@
-# Synthetic Monitoring - Google.com Health Check
-# Runs every 5 minutes to monitor https://www.google.com
-#
-# 📊 WHERE TO SEE RESULTS & LOGS:
-# ===============================
-#
-# 1. GITHUB ACTIONS DASHBOARD:
-#    Your Repository → Actions Tab → "Synthetic Monitoring" workflow
-#    - Real-time workflow status (running, success, failure)
-#    - Detailed execution logs with timestamps
-#    - Expand steps to see detailed output
-#
-# 2. WORKFLOW RUN DETAILS:
-#    - Click any workflow run to see full logs
-#    - View response times and HTTP status codes
-#    - See success/failure indicators with emojis
-#
-# 3. ARTIFACTS (Detailed Reports):
-#    - Download "monitoring-report-XXXXX.zip"
-#    - Contains full markdown report with all metrics
-#    - Includes test results, timestamps, and environment info
-#
-# 4. GITHUB ISSUES (Failures Only):
-#    - Automatic issue creation when monitoring fails
-#    - Includes detailed failure information
-#    - Labeled for easy tracking
-#
-# 🔍 WHAT TO LOOK FOR IN LOGS:
-# =============================
-# ✅ SUCCESS Example:
-#   - HTTP Status: 200
-#   - Response Time: 245ms
-#   - All tests: success
-#
-# ❌ FAILURE Example:
-#   - HTTP Status: 500
-#   - Response Time: 1250ms
-#   - Detailed error information
-#
-# 📋 MONITORING SCHEDULE:
-# ======================
-# - Runs: Every 5 minutes (*/5 * * * *)
-# - Manual trigger: Available via GitHub Actions UI
-# - On code changes: Triggers when workflow file changes
-#
-# 🚨 FAILURE ALERTS:
-# =================
-# - GitHub Issues: Created automatically on failures
-# - Console logs: Detailed error information
-# - Artifact reports: Full monitoring report for download
-
 name: Synthetic Monitoring
 
 on:
@@ -72,106 +21,70 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
+
     - name: Set up monitoring environment
       run: |
         echo "Starting synthetic monitoring at $(date)"
-        # Install any additional tools if needed
         sudo apt-get update
-        sudo apt-get install -y curl wget jq bc
-    
-    - name: Run basic connectivity test
+        sudo apt-get install -y curl wget jq bc dnsutils openssl
+
+    - name: Basic Connectivity Test
       id: basic-test
       run: |
-        echo "Testing basic connectivity to google.com..."
-        
-        # Test basic ping
+        echo "Testing ping to google.com..."
         if ping -c 3 google.com &>/dev/null; then
-          echo "✅ Ping test passed"
           echo "ping_status=success" >> $GITHUB_OUTPUT
         else
-          echo "❌ Ping test failed"
           echo "ping_status=failure" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: HTTP Response Test
       id: http-test
       run: |
         echo "Testing HTTP response from https://www.google.com..."
-        
-        # Measure response time and check status
         start_time=$(date +%s%N)
         http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://www.google.com)
         end_time=$(date +%s%N)
-        
-        # Calculate response time in milliseconds
         response_time=$(( (end_time - start_time) / 1000000 ))
-        
-        echo "HTTP Status Code: $http_code"
-        echo "Response Time: ${response_time}ms"
-        
-        # Output results for other steps
         echo "http_code=$http_code" >> $GITHUB_OUTPUT
         echo "response_time=$response_time" >> $GITHUB_OUTPUT
-        
-        # Check if response is successful
         if [ "$http_code" -eq 200 ] && [ "$response_time" -lt 5000 ]; then
-          echo "✅ HTTP test passed"
           echo "http_status=success" >> $GITHUB_OUTPUT
         else
-          echo "❌ HTTP test failed"
           echo "http_status=failure" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: DNS Resolution Test
       id: dns-test
       run: |
-        echo "Testing DNS resolution..."
-        
-        # Test DNS resolution
         if nslookup google.com &>/dev/null; then
-          echo "✅ DNS resolution successful"
           echo "dns_status=success" >> $GITHUB_OUTPUT
         else
-          echo "❌ DNS resolution failed"
           echo "dns_status=failure" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Advanced Monitoring Script
       id: advanced-test
       run: |
-        echo "Running advanced monitoring checks..."
-        
-        # Create a simple monitoring script
         cat > monitor.sh << 'EOF'
         #!/bin/bash
-        
         TARGET="google.com"
         TIMEOUT=10
-        
+
         echo "=== Advanced Synthetic Monitoring Report ==="
         echo "Target: $TARGET"
         echo "Timestamp: $(date)"
         echo ""
-        
-        # Test multiple endpoints
+
         endpoints=("https://www.google.com" "https://google.com/search?q=test")
-        
         for endpoint in "${endpoints[@]}"; do
-          echo "Testing: $endpoint"
-          
-          # Get HTTP status and response time
           result=$(curl -s -w "time:%{time_total},code:%{http_code}" --max-time $TIMEOUT "$endpoint" -o /dev/null)
-          
           time=$(echo $result | grep -o 'time:[0-9.]*' | cut -d: -f2)
           code=$(echo $result | grep -o 'code:[0-9]*' | cut -d: -f2)
-          
-          # Convert time to milliseconds
           time_ms=$(echo "$time * 1000" | bc 2>/dev/null || echo "0")
-          
+          echo "Endpoint: $endpoint"
           echo "  Status: $code"
           echo "  Response Time: ${time_ms}ms"
-          
           if [ "$code" = "200" ] && (( $(echo "$time < 5.0" | bc -l 2>/dev/null || echo "1") )); then
             echo "  Result: ✅ PASS"
           else
@@ -179,259 +92,78 @@ jobs:
           fi
           echo ""
         done
-        
-        # Check SSL certificate
-        echo "SSL Certificate Check:"
+
+        # SSL Certificate
         ssl_expiry=$(echo | openssl s_client -connect www.google.com:443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | cut -d= -f2)
         if [ -n "$ssl_expiry" ]; then
-          echo "  Certificate valid until: $ssl_expiry"
-          
-          # Check if certificate expires within 30 days
-          expiry_timestamp=$(date -d "$ssl_expiry" +%s)
-          warning_timestamp=$(date -d "+30 days" +%s)
-          
-          if [ "$expiry_timestamp" -lt "$warning_timestamp" ]; then
-            echo "  ⚠️  Certificate expires soon!"
-          else
-            echo "  ✅ Certificate is valid"
-          fi
+          echo "SSL Certificate valid until: $ssl_expiry"
         else
-          echo "  ❌ Could not check certificate"
+          echo "SSL Certificate check failed"
         fi
-        echo ""
-        
-        # Test IPv6 connectivity (if available)
-        echo "IPv6 Connectivity Test:"
+
+        # IPv6 connectivity
         if ping -6 -c 2 google.com &>/dev/null; then
-          echo "  ✅ IPv6 connectivity available"
+          echo "IPv6 connectivity: ✅"
         else
-          echo "  ⚠️  IPv6 connectivity not available"
+          echo "IPv6 connectivity: ⚠️"
         fi
-        
-        echo "=== End Report ==="
         EOF
-        
+
         chmod +x monitor.sh
-        ./monitor.sh
-        
+        ./monitor.sh | tee advanced-report.txt
         echo "advanced_status=completed" >> $GITHUB_OUTPUT
-    
-    - name: Generate Report
+
+    - name: Generate Markdown Report
       id: report
       run: |
-        echo "Generating monitoring report..."
-        
-        # Create a summary report
         {
           echo "# Synthetic Monitoring Report"
+          echo "Timestamp: $(date)"
           echo ""
-          echo "## Summary"
-          echo "- **Target:** https://www.google.com"
-          echo "- **Timestamp:** $(date)"
-          echo "- **Run ID:** $GITHUB_RUN_ID"
+          echo "## Basic Tests"
+          echo "- Ping: ${{ steps.basic-test.outputs.ping_status }}"
+          echo "- HTTP: ${{ steps.http-test.outputs.http_status }} (Code: ${{ steps.http-test.outputs.http_code }}, Response: ${{ steps.http-test.outputs.response_time }}ms)"
+          echo "- DNS: ${{ steps.dns-test.outputs.dns_status }}"
           echo ""
-          echo "## Test Results"
-          echo "| Test | Status | Details |"
-          echo "|------|--------|---------|"
-          
-          # Basic connectivity
-          if [ "${{ steps.basic-test.outputs.ping_status }}" = "success" ]; then
-            echo "| Ping Test | ✅ Pass | Basic connectivity OK |"
-          else
-            echo "| Ping Test | ❌ Fail | Ping failed |"
-          fi
-          
-          # HTTP test
-          if [ "${{ steps.http-test.outputs.http_status }}" = "success" ]; then
-            echo "| HTTP Test | ✅ Pass | Status: ${{ steps.http-test.outputs.http_code }}, Response: ${{ steps.http-test.outputs.response_time }}ms |"
-          else
-            echo "| HTTP Test | ❌ Fail | Status: ${{ steps.http-test.outputs.http_code }}, Response: ${{ steps.http-test.outputs.response_time }}ms |"
-          fi
-          
-          # DNS test
-          if [ "${{ steps.dns-test.outputs.dns_status }}" = "success" ]; then
-            echo "| DNS Test | ✅ Pass | DNS resolution OK |"
-          else
-            echo "| DNS Test | ❌ Fail | DNS resolution failed |"
-          fi
-          
-          echo ""
-          echo "## Environment"
-          echo "- **Runner:** ubuntu-latest"
-          echo "- **Region:** GitHub Actions"
-          echo ""
-          echo "---"
-          echo "*This report was generated automatically by GitHub Actions synthetic monitoring.*"
+          echo "## Advanced Monitoring"
+          cat advanced-report.txt
         } > monitoring-report.md
-        
         echo "report_generated=true" >> $GITHUB_OUTPUT
-    
-    - name: Upload monitoring results
+
+    - name: Upload Report Artifact
       uses: actions/upload-artifact@v4
       with:
         name: monitoring-report-${{ github.run_id }}
         path: monitoring-report.md
-    
-    - name: Check for failures and create GitHub Issue
-      if: failure() || (steps.http-test.outputs.http_status == 'failure') || (steps.basic-test.outputs.ping_status == 'failure') || (steps.dns-test.outputs.dns_status == 'failure')
+
+    - name: Create GitHub Issue on Failure
+      if: failure() || steps.http-test.outputs.http_status == 'failure' || steps.basic-test.outputs.ping_status == 'failure' || steps.dns-test.outputs.dns_status == 'failure'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "⚠️  Monitoring detected failures!"
-        echo "Check the uploaded artifacts for detailed report."
-        
-        # Create issue body with current timestamp
-        CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
-        
-        # Create the issue directly using printf to build the body
-        printf "Monitoring detected issues with google.com at %s\n\n## Failure Details:\n- **HTTP Status:** %s\n- **Response Time:** %sms\n- **Ping Status:** %s\n- **DNS Status:** %s\n- **Run ID:** %s\n\n## Action Required:\nCheck the monitoring artifacts for the detailed report:\nhttps://github.com/%s/actions/runs/%s\n\n*This issue was created automatically by GitHub Actions synthetic monitoring.*" \
-          "$CURRENT_DATE" \
-          "${{ steps.http-test.outputs.http_code || 'N/A' }}" \
-          "${{ steps.http-test.outputs.response_time || 'N/A' }}" \
-          "${{ steps.basic-test.outputs.ping_status || 'N/A' }}" \
-          "${{ steps.dns-test.outputs.dns_status || 'N/A' }}" \
-          "${{ github.run_id }}" \
+        echo "Creating issue for monitoring failure..."
+        TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S UTC')
+        printf "Monitoring failure detected at %s\n\nBasic tests:\n- Ping: %s\n- HTTP: %s\n- DNS: %s\n\nSee report: https://github.com/%s/actions/runs/%s" \
+          "$TIMESTAMP" \
+          "${{ steps.basic-test.outputs.ping_status }}" \
+          "${{ steps.http-test.outputs.http_status }} (Code: ${{ steps.http-test.outputs.http_code }})" \
+          "${{ steps.dns-test.outputs.dns_status }}" \
           "${{ github.repository }}" \
           "${{ github.run_id }}" \
           > issue_body.md
-        
-        # Create the issue using the body file (without labels to avoid dependency issues)
-        gh issue create \
-          --title "🚨 Synthetic Monitoring Alert - $CURRENT_DATE" \
-          --body-file issue_body.md
+        gh issue create --title "🚨 Synthetic Monitoring Alert - $TIMESTAMP" --body-file issue_body.md
 
-    
-    - name: Send Email Alert on Failure
-      if: failure() || (steps.http-test.outputs.http_status == 'failure') || (steps.basic-test.outputs.ping_status == 'failure') || (steps.dns-test.outputs.dns_status == 'failure')
+    - name: Send Email Alert
+      if: always()
       uses: dawidd6/action-send-mail@v3
       with:
-        server_address: smtp.gmail.com
+        server_address: smtp.sendgrid.net
         server_port: 587
         username: apikey
         password: ${{ secrets.SENDGRID_API_KEY }}
-        subject: '🚨 Synthetic Monitoring Alert - Google.com Down'
+        subject: "Synthetic Monitoring Report - Google.com"
         to: ${{ secrets.SENDGRID_TO }}
         from: ${{ secrets.SENDGRID_FROM }}
         html_body: |
-          <h2>🚨 Synthetic Monitoring Alert</h2>
-          <p><strong>Monitoring detected issues with google.com at:</strong> $(date)</p>
-          
-          <h3>Failure Details:</h3>
-          <ul>
-            <li><strong>HTTP Status:</strong> ${{ steps.http-test.outputs.http_code || 'N/A' }}</li>
-            <li><strong>Response Time:</strong> ${{ steps.http-test.outputs.response_time || 'N/A' }}ms</li>
-            <li><strong>Ping Status:</strong> ${{ steps.basic-test.outputs.ping_status || 'N/A' }}</li>
-            <li><strong>DNS Status:</strong> ${{ steps.dns-test.outputs.dns_status || 'N/A' }}</li>
-            <li><strong>Run ID:</strong> ${{ github.run_id }}</li>
-          </ul>
-          
-          <h3>Action Required:</h3>
-          <p>Check the monitoring artifacts for the detailed report:</p>
-          <p><a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Full Report</a></p>
-          
-          <hr>
-          <p><em>This alert was generated automatically by GitHub Actions synthetic monitoring.</em></p>
-    
-    - name: Send Email Success Summary
-      if: success() && (steps.http-test.outputs.http_status == 'success') && (steps.basic-test.outputs.ping_status == 'success') && (steps.dns-test.outputs.dns_status == 'success')
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: smtp.gmail.com
-        server_port: 587
-        username: apikey
-        password: ${{ secrets.SENDGRID_API_KEY }}
-        subject: '✅ Synthetic Monitoring Report - Google.com Healthy'
-        to: ${{ secrets.SENDGRID_TO }}
-        from: ${{ secrets.SENDGRID_FROM }}
-        html_body: |
-          <h2>✅ Synthetic Monitoring Report</h2>
-          <p><strong>All monitoring checks completed successfully at:</strong> $(date)</p>
-          
-          <h3>Results Summary:</h3>
-          <ul>
-            <li><strong>HTTP Status:</strong> ${{ steps.http-test.outputs.http_code }}</li>
-            <li><strong>Response Time:</strong> ${{ steps.http-test.outputs.response_time }}ms</li>
-            <li><strong>Ping Status:</strong> ${{ steps.basic-test.outputs.ping_status }}</li>
-            <li><strong>DNS Status:</strong> ${{ steps.dns-test.outputs.dns_status }}</li>
-            <li><strong>Run ID:</strong> ${{ github.run_id }}</li>
-          </ul>
-          
-          <p><a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Full Report</a></p>
-          
-          <hr>
-          <p><em>This report was generated automatically by GitHub Actions synthetic monitoring.</em></p>
-    
-    - name: Success notification with summary
-      if: success() && (steps.http-test.outputs.http_status == 'success') && (steps.basic-test.outputs.ping_status == 'success') && (steps.dns-test.outputs.dns_status == 'success')
-      run: |
-        echo "✅ All monitoring checks completed successfully!"
-        echo "📊 Results Summary:"
-        echo "  - HTTP Status: ${{ steps.http-test.outputs.http_code }}"
-        echo "  - Response Time: ${{ steps.http-test.outputs.response_time }}ms"
-        echo "  - Ping: ${{ steps.basic-test.outputs.ping_status }}"
-        echo "  - DNS: ${{ steps.dns-test.outputs.dns_status }}"
-        echo ""
-        echo "📋 Full report available in artifacts."
-        echo "📧 Email notification sent to maureen.ebreo@gmail.com"
-
-# Enhanced Notifications Setup:
-#
-# 1. GitHub Issues (Automatic):
-#    - Creates issues automatically on failures
-#    - Includes detailed failure information
-#    - No additional setup required
-#
-# 2. Email Notifications (Configured):
-#    - Sends alerts to maureen.ebreo@gmail.com
-#    - Works for both success and failure scenarios
-#    - Requires EMAIL_USERNAME and EMAIL_PASSWORD secrets (see setup below)
-#
-# 3. Slack Notifications (Optional):
-#    - Requires SLACK_WEBHOOK_URL secret
-#    - Sends summary to Slack channel
-#    - Works for both success and failure
-#
-# 4. Webhook Notifications (Optional):
-#    - Send custom webhooks to any service
-#    - Configure webhook URL as a secret
-#
-# 📧 EMAIL SETUP INSTRUCTIONS:
-# ============================
-# To enable email notifications, you need to set up these GitHub repository secrets:
-#
-# 1. Go to your GitHub repository
-# 2. Navigate to Settings → Secrets and variables → Actions
-# 3. Add these secrets:
-#
-#    EMAIL_USERNAME: Your Gmail address (e.g., your.email@gmail.com)
-#    EMAIL_PASSWORD: Your Gmail App Password (NOT your regular password)
-#
-# 4. How to get Gmail App Password:
-#    - Go to https://myaccount.google.com/security
-#    - Enable 2-Factor Authentication if not already enabled
-#    - Go to "App passwords"
-#    - Generate a new app password for "Mail"
-#    - Use this 16-character password as EMAIL_PASSWORD
-#
-# 5. Alternative Email Providers:
-#    - For other email providers, update server_address and server_port:
-#      * Outlook: smtp-mail.outlook.com, port 587
-#      * Yahoo: smtp.mail.yahoo.com, port 587
-#      * Custom SMTP: Use your provider's settings
-#
-# 🔧 CUSTOMIZATION OPTIONS:
-# =========================
-# - Change email recipient: Update the 'to:' field in both email steps
-# - Add multiple recipients: Use comma-separated emails like "email1@example.com,email2@example.com"
-# - Modify email frequency: Currently sends on both success and failure
-#   - To only send on failure: Remove the "Send Email Success Summary" step
-#   - To send daily summary: Add a separate scheduled workflow
-#
-# To enable Slack notifications:
-# 1. Go to your Slack workspace
-# 2. Create a webhook URL in your desired channel
-# 3. Add SLACK_WEBHOOK_URL as a repository secret in GitHub
-# 4. Add a Slack notification step to the workflow
-#
-# To disable any notification:
-# Simply remove or comment out the corresponding step
+          <h2>Monitoring Report - $(date)</h2>
+          <pre>$(cat monitoring-report.md)</pre>
