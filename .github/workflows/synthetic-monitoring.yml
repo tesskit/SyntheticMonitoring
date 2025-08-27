@@ -311,7 +311,7 @@ jobs:
         password: ${{ secrets.EMAIL_PASSWORD }}
         subject: '🚨 Synthetic Monitoring Alert - Google.com Down'
         to: maureen.ebreo@gmail.com
-        from: ${{ secrets.EMAIL_USERNAME }}
+        from: maureen.ebreo@gmail.com
         html_body: |
           <h2>🚨 Synthetic Monitoring Alert</h2>
           <p><strong>Monitoring detected issues with google.com at:</strong> $(date)</p>
