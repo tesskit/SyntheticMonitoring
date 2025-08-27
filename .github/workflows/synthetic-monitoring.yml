@@ -61,6 +61,10 @@ on:
     paths:
       - '.github/workflows/synthetic-monitoring.yml'
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   monitor-google:
     runs-on: ubuntu-latest
@@ -74,7 +78,7 @@ jobs:
         echo "Starting synthetic monitoring at $(date)"
         # Install any additional tools if needed
         sudo apt-get update
-        sudo apt-get install -y curl wget jq
+        sudo apt-get install -y curl wget jq bc
     
     - name: Run basic connectivity test
       id: basic-test
@@ -269,31 +273,39 @@ jobs:
         path: monitoring-report.md
     
     - name: Check for failures and create GitHub Issue
-      if: failure()
+      if: failure() || (steps.http-test.outputs.http_status == 'failure') || (steps.basic-test.outputs.ping_status == 'failure') || (steps.dns-test.outputs.dns_status == 'failure')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "⚠️  Monitoring detected failures!"
         echo "Check the uploaded artifacts for detailed report."
         
-        # Create a GitHub issue on failure
-        if [ "${{ steps.http-test.outputs.http_status }}" = "failure" ] || [ "${{ steps.basic-test.outputs.ping_status }}" = "failure" ] || [ "${{ steps.dns-test.outputs.dns_status }}" = "failure" ]; then
-          gh issue create --title "🚨 Synthetic Monitoring Alert - $(date)" \
-            --body "Monitoring detected issues with google.com at $(date)
+        # Create issue body with current timestamp
+        CURRENT_DATE=$(date '+%Y-%m-%d %H:%M:%S UTC')
+        
+        # Create the issue directly using printf to build the body
+        printf "Monitoring detected issues with google.com at %s\n\n## Failure Details:\n- **HTTP Status:** %s\n- **Response Time:** %sms\n- **Ping Status:** %s\n- **DNS Status:** %s\n- **Run ID:** %s\n\n## Action Required:\nCheck the monitoring artifacts for the detailed report:\nhttps://github.com/%s/actions/runs/%s\n\n*This issue was created automatically by GitHub Actions synthetic monitoring.*" \
+          "$CURRENT_DATE" \
+          "${{ steps.http-test.outputs.http_code || 'N/A' }}" \
+          "${{ steps.http-test.outputs.response_time || 'N/A' }}" \
+          "${{ steps.basic-test.outputs.ping_status || 'N/A' }}" \
+          "${{ steps.dns-test.outputs.dns_status || 'N/A' }}" \
+          "${{ github.run_id }}" \
+          "${{ github.repository }}" \
+          "${{ github.run_id }}" \
+          > issue_body.md
+        
+        # Create the issue using the body file
+        gh issue create \
+          --title "🚨 Synthetic Monitoring Alert - $CURRENT_DATE" \
+          --body-file issue_body.md \
+          --label monitoring \
+          --label alert \
+          --label urgent
 
-## Failure Details:
-- **HTTP Status:** ${{ steps.http-test.outputs.http_code }}
-- **Response Time:** ${{ steps.http-test.outputs.response_time }}ms
-- **Ping Status:** ${{ steps.basic-test.outputs.ping_status }}
-- **DNS Status:** ${{ steps.dns-test.outputs.dns_status }}
-
-## Action Required:
-Check the monitoring artifacts for the detailed report.
-
-*This issue was created automatically by GitHub Actions synthetic monitoring.*" \
-            --label "monitoring,alert,urgent"
-        fi
     
     - name: Success notification with summary
-      if: success()
+      if: success() && (steps.http-test.outputs.http_status == 'success') && (steps.basic-test.outputs.ping_status == 'success') && (steps.dns-test.outputs.dns_status == 'success')
       run: |
         echo "✅ All monitoring checks completed successfully!"
         echo "📊 Results Summary:"
@@ -303,3 +315,32 @@ Check the monitoring artifacts for the detailed report.
         echo "  - DNS: ${{ steps.dns-test.outputs.dns_status }}"
         echo ""
         echo "📋 Full report available in artifacts."
+
+# Enhanced Notifications Setup:
+#
+# 1. GitHub Issues (Automatic):
+#    - Creates issues automatically on failures
+#    - Includes detailed failure information
+#    - Labeled for easy tracking
+#
+# 2. Slack Notifications (Optional):
+#    - Requires SLACK_WEBHOOK_URL secret
+#    - Sends summary to Slack channel
+#    - Works for both success and failure
+#
+# 3. Email Notifications (Optional):
+#    - Can be added using third-party actions
+#    - Configure via repository secrets
+#
+# 4. Webhook Notifications (Optional):
+#    - Send custom webhooks to any service
+#    - Configure webhook URL as a secret
+#
+# To enable Slack notifications:
+# 1. Go to your Slack workspace
+# 2. Create a webhook URL in your desired channel
+# 3. Add SLACK_WEBHOOK_URL as a repository secret in GitHub
+# 4. Uncomment the Slack notification step above
+#
+# To disable any notification:
+# Simply remove or comment out the corresponding steps
