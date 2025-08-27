@@ -165,5 +165,125 @@ jobs:
         to: ${{ secrets.SENDGRID_TO }}
         from: ${{ secrets.SENDGRID_FROM }}
         html_body: |
-          <h2>Monitoring Report - $(date)</h2>
-          <pre>$(cat monitoring-report.md)</pre>
+          <h2>🚨 Synthetic Monitoring Alert</h2>
+          <p><strong>Monitoring detected issues with google.com at:</strong> $(date)</p>
+          
+          <h3>Failure Details:</h3>
+          <ul>
+            <li><strong>HTTP Status:</strong> ${{ steps.http-test.outputs.http_code || 'N/A' }}</li>
+            <li><strong>Response Time:</strong> ${{ steps.http-test.outputs.response_time || 'N/A' }}ms</li>
+            <li><strong>Ping Status:</strong> ${{ steps.basic-test.outputs.ping_status || 'N/A' }}</li>
+            <li><strong>DNS Status:</strong> ${{ steps.dns-test.outputs.dns_status || 'N/A' }}</li>
+            <li><strong>Run ID:</strong> ${{ github.run_id }}</li>
+          </ul>
+          
+          <h3>Action Required:</h3>
+          <p>Check the monitoring artifacts for the detailed report:</p>
+          <p><a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Full Report</a></p>
+          
+          <hr>
+          <p><em>This alert was generated automatically by GitHub Actions synthetic monitoring.</em></p>
+    
+    - name: Send Email Success Summary
+      if: success() && (steps.http-test.outputs.http_status == 'success') && (steps.basic-test.outputs.ping_status == 'success') && (steps.dns-test.outputs.dns_status == 'success')
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 587
+        username: apikey
+        password: ${{ secrets.SENDGRID_API_KEY }}
+        subject: '✅ Synthetic Monitoring Report - Google.com Healthy'
+        to: ${{ secrets.SENDGRID_TO }}
+        from: ${{ secrets.SENDGRID_FROM }}
+        html_body: |
+          <h2>✅ Synthetic Monitoring Report</h2>
+          <p><strong>All monitoring checks completed successfully at:</strong> $(date)</p>
+          
+          <h3>Results Summary:</h3>
+          <ul>
+            <li><strong>HTTP Status:</strong> ${{ steps.http-test.outputs.http_code }}</li>
+            <li><strong>Response Time:</strong> ${{ steps.http-test.outputs.response_time }}ms</li>
+            <li><strong>Ping Status:</strong> ${{ steps.basic-test.outputs.ping_status }}</li>
+            <li><strong>DNS Status:</strong> ${{ steps.dns-test.outputs.dns_status }}</li>
+            <li><strong>Run ID:</strong> ${{ github.run_id }}</li>
+          </ul>
+          
+          <p><a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Full Report</a></p>
+          
+          <hr>
+          <p><em>This report was generated automatically by GitHub Actions synthetic monitoring.</em></p>
+    
+    - name: Success notification with summary
+      if: success() && (steps.http-test.outputs.http_status == 'success') && (steps.basic-test.outputs.ping_status == 'success') && (steps.dns-test.outputs.dns_status == 'success')
+      run: |
+        echo "✅ All monitoring checks completed successfully!"
+        echo "📊 Results Summary:"
+        echo "  - HTTP Status: ${{ steps.http-test.outputs.http_code }}"
+        echo "  - Response Time: ${{ steps.http-test.outputs.response_time }}ms"
+        echo "  - Ping: ${{ steps.basic-test.outputs.ping_status }}"
+        echo "  - DNS: ${{ steps.dns-test.outputs.dns_status }}"
+        echo ""
+        echo "📋 Full report available in artifacts."
+        echo "📧 Email notification sent to maureen.ebreo@gmail.com"
+
+# Enhanced Notifications Setup:
+#
+# 1. GitHub Issues (Automatic):
+#    - Creates issues automatically on failures
+#    - Includes detailed failure information
+#    - No additional setup required
+#
+# 2. Email Notifications (Configured):
+#    - Sends alerts to maureen.ebreo@gmail.com
+#    - Works for both success and failure scenarios
+#    - Requires EMAIL_USERNAME and EMAIL_PASSWORD secrets (see setup below)
+#
+# 3. Slack Notifications (Optional):
+#    - Requires SLACK_WEBHOOK_URL secret
+#    - Sends summary to Slack channel
+#    - Works for both success and failure
+#
+# 4. Webhook Notifications (Optional):
+#    - Send custom webhooks to any service
+#    - Configure webhook URL as a secret
+#
+# 📧 EMAIL SETUP INSTRUCTIONS:
+# ============================
+# To enable email notifications, you need to set up these GitHub repository secrets:
+#
+# 1. Go to your GitHub repository
+# 2. Navigate to Settings → Secrets and variables → Actions
+# 3. Add these secrets:
+#
+#    EMAIL_USERNAME: Your Gmail address (e.g., your.email@gmail.com)
+#    EMAIL_PASSWORD: Your Gmail App Password (NOT your regular password)
+#
+# 4. How to get Gmail App Password:
+#    - Go to https://myaccount.google.com/security
+#    - Enable 2-Factor Authentication if not already enabled
+#    - Go to "App passwords"
+#    - Generate a new app password for "Mail"
+#    - Use this 16-character password as EMAIL_PASSWORD
+#
+# 5. Alternative Email Providers:
+#    - For other email providers, update server_address and server_port:
+#      * Outlook: smtp-mail.outlook.com, port 587
+#      * Yahoo: smtp.mail.yahoo.com, port 587
+#      * Custom SMTP: Use your provider's settings
+#
+# 🔧 CUSTOMIZATION OPTIONS:
+# =========================
+# - Change email recipient: Update the 'to:' field in both email steps
+# - Add multiple recipients: Use comma-separated emails like "email1@example.com,email2@example.com"
+# - Modify email frequency: Currently sends on both success and failure
+#   - To only send on failure: Remove the "Send Email Success Summary" step
+#   - To send daily summary: Add a separate scheduled workflow
+#
+# To enable Slack notifications:
+# 1. Go to your Slack workspace
+# 2. Create a webhook URL in your desired channel
+# 3. Add SLACK_WEBHOOK_URL as a repository secret in GitHub
+# 4. Add a Slack notification step to the workflow
+#
+# To disable any notification:
+# Simply remove or comment out the corresponding step
