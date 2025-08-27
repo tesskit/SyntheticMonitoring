@@ -295,13 +295,10 @@ jobs:
           "${{ github.run_id }}" \
           > issue_body.md
         
-        # Create the issue using the body file
+        # Create the issue using the body file (without labels to avoid dependency issues)
         gh issue create \
           --title "🚨 Synthetic Monitoring Alert - $CURRENT_DATE" \
-          --body-file issue_body.md \
-          --label monitoring \
-          --label alert \
-          --label urgent
+          --body-file issue_body.md
 
     
     - name: Success notification with summary
@@ -343,4 +340,4 @@ jobs:
 # 4. Uncomment the Slack notification step above
 #
 # To disable any notification:
-# Simply remove or comment out the corresponding steps
+# Simply remove or comment out the corresponding step
