@@ -307,11 +307,11 @@ jobs:
       with:
         server_address: smtp.gmail.com
         server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
+        username: apikey
+        password: ${{ secrets.SENDGRID_API_KEY }}
         subject: '🚨 Synthetic Monitoring Alert - Google.com Down'
-        to: maureen.ebreo@gmail.com
-        from: maureen.ebreo@gmail.com
+        to: ${{ secrets.SENDGRID_TO }}
+        from: ${{ secrets.SENDGRID_FROM }}
         html_body: |
           <h2>🚨 Synthetic Monitoring Alert</h2>
           <p><strong>Monitoring detected issues with google.com at:</strong> $(date)</p>
@@ -338,11 +338,11 @@ jobs:
       with:
         server_address: smtp.gmail.com
         server_port: 587
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
+        username: apikey
+        password: ${{ secrets.SENDGRID_API_KEY }}
         subject: '✅ Synthetic Monitoring Report - Google.com Healthy'
-        to: maureen.ebreo@gmail.com
-        from: maureen.ebreo@gmail.com
+        to: ${{ secrets.SENDGRID_TO }}
+        from: ${{ secrets.SENDGRID_FROM }}
         html_body: |
           <h2>✅ Synthetic Monitoring Report</h2>
           <p><strong>All monitoring checks completed successfully at:</strong> $(date)</p>
