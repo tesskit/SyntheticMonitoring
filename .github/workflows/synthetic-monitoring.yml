@@ -342,7 +342,7 @@ jobs:
         password: ${{ secrets.EMAIL_PASSWORD }}
         subject: '✅ Synthetic Monitoring Report - Google.com Healthy'
         to: maureen.ebreo@gmail.com
-        from: ${{ secrets.EMAIL_USERNAME }}
+        from: maureen.ebreo@gmail.com
         html_body: |
           <h2>✅ Synthetic Monitoring Report</h2>
           <p><strong>All monitoring checks completed successfully at:</strong> $(date)</p>
