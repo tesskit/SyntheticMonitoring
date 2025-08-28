@@ -3,12 +3,12 @@ name: Synthetic Monitoring
 on:
   schedule:
     # Run every 5 minutes
-    - cron: '0 0 31 2 *'
+    #- cron: '0 0 31 2 *'
   workflow_dispatch:  # Allow manual triggering
-  push:
-    branches: [ main, master ]
-    paths:
-      - '.github/workflows/synthetic-monitoring.yml'
+  #push:
+  #  branches: [ main, master ]
+  #  paths:
+  #    - '.github/workflows/synthetic-monitoring.yml'
 
 permissions:
   contents: read
